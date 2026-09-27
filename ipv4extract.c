@@ -230,7 +230,7 @@ int extractIPv4(const char* str, unsigned long* outAddress, int* outPort) {
             }
             /* Candidate failed; continue scanning right after it. */
         } else {
-            i++; //move scanning position past failed token
+            i++; //move up i if garbage character
         }
     }
 

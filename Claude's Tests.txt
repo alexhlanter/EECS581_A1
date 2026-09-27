@@ -1,0 +1,31 @@
+Every following test was manually entered by me and confirmed. Additionally also tested all of canvas example input/output cases.
+
+#	Input	Expected result	What it's testing
+1	0.0.0.0	Valid, decimal 0	All-zero octets, single 0 is a legal octet
+2	255.255.255.255	Valid, decimal 4294967295	Max value, 32-bit unsigned doesn't wrap
+3	256.1.1.1	Invalid	Octet one over the 255 ceiling
+4	1.1.1.256	Invalid	Same, in the last octet
+5	300.1.1.1	Invalid	3-digit octet, still out of range
+6	1234.5.6.7	Invalid	4-digit run — digit cap kicks in before range check
+7	999.1.1.1 or 1.2.3.4	Extracts 1.2.3.4	First candidate fails, scan must recover and find the second
+8	1.2.3.4 5.6.7.8	Extracts 1.2.3.4 only	Two valid candidates — must report the first, not both
+9	abc:123 1.2.3.4	Extracts 1.2.3.4	:123 alone is a bogus token (starts with :, no address) and must be skipped, not misread as a partial match
+10	.1.2.3.4	Invalid	Leading stray . is part of the token (same char class) — whole token invalid
+11	1.2.3.4x	Extracts 1.2.3.4	Trailing x is not in the token's char class, so it's a separate garbage char and doesn't poison the match
+12	1.2.3.4,	Extracts 1.2.3.4	Same idea, contrast with the 192.168.1.1. case in the spec where the trailing char was a .
+13	1.2.3.4:	Invalid	Colon present but no port digits at all
+14	1.2.3.4::80	Invalid	Second colon — port parse hits : instead of a digit
+15	1.2.3.4:5:6	Invalid	Extra :group after a valid port
+16	1.2.3.4.5 / 1.2.3.4.5.6.7.8	Invalid	Too many dot-groups
+17	1.2.3	Invalid	Too few octets
+18	1.2.3.4:65535	Valid, port 65535	Max legal port
+19	1.2.3.4:65536	Invalid	One over max port
+20	1.2.3.4:00001	Invalid	Leading-zero rule applies to the port too
+21	1.2.3.4:0	Valid, port 0	0 alone is a legal port (contrast with #20)
+22	01.1.1.1, 1.01.1.1, 1.1.01.1, 1.1.1.01	Invalid (all four)	Leading-zero rule checked in every octet position, not just the first
+23	123456789012345678901234567890	Invalid, no crash	Digit run far longer than any valid field — checks the 3-digit octet cap holds even under a huge run
+24	1.2.3.4:99999999999999999999	Invalid, no crash	Same idea for the 5-digit port cap; also confirms no integer overflow before the cap trips
+25	A ~10,000-char line with 10.20.30.40:9999 buried in the middle	Extracted correctly	Exercises the dynamic buffer's realloc growth path, not just the initial 256-byte size
+26	END (trailing space)	Not treated as quit — tries to parse it, fails, loop continues	Confirms exact strcmp, not a trimmed/prefix match
+27	end (lowercase)	Same — not treated as quit	Case-sensitivity
+28	(blank line, just Enter)	Invalid input: no valid IPv4 address found, loop continues (not treated as EOF)	Empty line doesn't get confused with EOF in readLine
