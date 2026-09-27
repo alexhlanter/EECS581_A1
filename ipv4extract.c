@@ -1,15 +1,14 @@
 /*
  * ipv4extract.c
  *
- * Reads lines of text from the user and extracts a single valid IPv4
- * address (optionally followed by a :port) embedded anywhere in the line.
+ * Reads a line of text from the user and extracts a single valid IPv4
+ * address (optionally followed by a valid :port) embedded anywhere in the line.
  *
  * Build:   make
  * Run:     ./ipv4extract   (or "make run")
  * Clean:   make clean
- *
- * NOTE: extractIPv4() below is intentionally left as a stub with comments
- * describing what it needs to do. Fill in the logic yourself.
+
+ Claude wrote multiline comments, I wrote // single lines. All code is from Claude.
  */
 
 #include <stdio.h>
@@ -18,7 +17,9 @@
 
 /* Starting size for the dynamic line buffer; it doubles as needed, so
  * this is just a reasonable first guess, not a hard limit. Lines (e.g.
- * long firewall log entries) can be arbitrarily long. */
+ * long firewall log entries) can be arbitrarily long.
+ * Had Claude make it this way since the "real world relevance" talked about this and could mean long tests are used.
+ */
 #define INITIAL_LINE_CAPACITY 256
 
 /*
@@ -31,46 +32,45 @@
  * Returns a malloc'd, NUL-terminated string (caller must free() it), or
  * NULL on end-of-file with nothing read, or on allocation failure.
  */
-static char* readLine(FILE* in) {
+static char* readLine(FILE* in) { 
     size_t capacity = INITIAL_LINE_CAPACITY;
     size_t length = 0;
     char* buffer = (char*)malloc(capacity);
-    if (!buffer) {
+    if (!buffer) { // if malloc fails return NULL
         return NULL;
     }
 
-    while (1) {
+    while (1) { // loop, if length about to hit capacity double the buffer
         if (length + 1 >= capacity) {
             size_t newCapacity = capacity * 2;
             char* newBuffer = (char*)realloc(buffer, newCapacity);
             if (!newBuffer) {
                 free(buffer);
-                return NULL;
+                return NULL; //if malloc fails return NULL
             }
             buffer = newBuffer;
             capacity = newCapacity;
         }
 
-        int ch = fgetc(in);
+        int ch = fgetc(in); //read character
         if (ch == EOF) {
-            if (length == 0) {
+            if (length == 0) { //If file over return NULL if never read anything
                 free(buffer);
                 return NULL;
             }
             break;
         }
-        if (ch == '\n') {
+        if (ch == '\n') { //if newline break loop (skip character)
             break;
         }
-        buffer[length++] = (char)ch;
+        buffer[length++] = (char)ch; //add character to buffer, increase length
     }
 
-    /* Strip a trailing '\r' left behind by CRLF-terminated input. */
-    if (length > 0 && buffer[length - 1] == '\r') {
+    if (length > 0 && buffer[length - 1] == '\r') { //if there is a \r at the end get rid of it
         length--;
     }
 
-    buffer[length] = '\0';
+    buffer[length] = '\0'; //null terminator at end of buffer then return it.
     return buffer;
 }
 
@@ -88,15 +88,14 @@ static int parseOctet(const char* tok, int len, int* pos, int* value) {
     int digits = 0;
     int val = 0;
 
-    while (*pos < len && tok[*pos] >= '0' && tok[*pos] <= '9') {
+    while (*pos < len && tok[*pos] >= '0' && tok[*pos] <= '9') { //read single digit, if there is 3 already fail
         if (digits == 3) {
-            /* A 4th digit means this can't be a valid (<=3 digit) octet. */
             return 0;
         }
-        val = val * 10 + (tok[*pos] - '0');
+        val = val * 10 + (tok[*pos] - '0'); //put digit in right place by mult by 10 based on position
         digits++;
         (*pos)++;
-        if (val > 255) {
+        if (val > 255) { //If out of range fail
             return 0;
         }
     }
@@ -124,22 +123,22 @@ static int parsePort(const char* tok, int len, int* pos, int* value) {
     int digits = 0;
     long val = 0;
 
-    while (*pos < len && tok[*pos] >= '0' && tok[*pos] <= '9') {
+    while (*pos < len && tok[*pos] >= '0' && tok[*pos] <= '9') { //read digit, if more than 5 fail
         if (digits == 5) {
             return 0;
         }
-        val = val * 10 + (tok[*pos] - '0');
+        val = val * 10 + (tok[*pos] - '0'); //track value by mult 10 with position
         digits++;
         (*pos)++;
-        if (val > 65535) {
+        if (val > 65535) { //If out of range fail
             return 0;
         }
     }
 
-    if (digits == 0) {
+    if (digits == 0) { //If nothing fail
         return 0;
     }
-    if (digits > 1 && tok[start] == '0') {
+    if (digits > 1 && tok[start] == '0') { //if leading 0 fail
         return 0;
     }
 
@@ -159,7 +158,7 @@ static int tryParseToken(const char* tok, int len, unsigned long* outAddress, in
     int pos = 0;
     int o1, o2, o3, o4;
 
-    if (!parseOctet(tok, len, &pos, &o1)) return 0;
+    if (!parseOctet(tok, len, &pos, &o1)) return 0; //for octets if cant parse octet, run out of characters, or not separated by . fail
     if (pos >= len || tok[pos] != '.') return 0;
     pos++;
 
@@ -174,7 +173,7 @@ static int tryParseToken(const char* tok, int len, unsigned long* outAddress, in
     if (!parseOctet(tok, len, &pos, &o4)) return 0;
 
     int port = -1;
-    if (pos < len) {
+    if (pos < len) { // if more characters to go has to have a port and then one that passes parse
         /* Anything left over after the 4th octet must be exactly
          * ':' followed by a fully valid port, and nothing more. */
         if (tok[pos] != ':') return 0;
@@ -182,15 +181,14 @@ static int tryParseToken(const char* tok, int len, unsigned long* outAddress, in
         if (!parsePort(tok, len, &pos, &port)) return 0;
     }
 
-    if (pos != len) {
-        /* Leftover characters (e.g. a second ':') -> reject. */
+    if (pos != len) { //extract sends this function digits, dots and colon. If there is extra chars, fail.
         return 0;
     }
 
-    *outAddress = ((unsigned long)o1 << 24) | ((unsigned long)o2 << 16) |
+    *outAddress = ((unsigned long)o1 << 24) | ((unsigned long)o2 << 16) | // convert octets into 32 bit number
                   ((unsigned long)o3 << 8) | (unsigned long)o4;
-    *outPort = port;
-    return 1;
+    *outPort = port; 
+    return 1; //success
 }
 
 /*
@@ -213,7 +211,7 @@ int extractIPv4(const char* str, unsigned long* outAddress, int* outPort) {
     *outPort = -1;
 
     int i = 0;
-    while (str[i] != '\0') {
+    while (str[i] != '\0') { //While haven't hit null terminator, read digits dots and colon. Increase position as you go.
         char c = str[i];
         if ((c >= '0' && c <= '9') || c == '.' || c == ':') {
             int start = i;
@@ -225,14 +223,14 @@ int extractIPv4(const char* str, unsigned long* outAddress, int* outPort) {
 
             unsigned long addr;
             int port;
-            if (tryParseToken(str + start, len, &addr, &port)) {
+            if (tryParseToken(str + start, len, &addr, &port)) { //try to parse with read token
                 *outAddress = addr;
                 *outPort = port;
                 return 1;
             }
             /* Candidate failed; continue scanning right after it. */
         } else {
-            i++;
+            i++; //move scanning position past failed token
         }
     }
 
@@ -240,7 +238,7 @@ int extractIPv4(const char* str, unsigned long* outAddress, int* outPort) {
 }
 
 int main(void) {
-    while (1) {
+    while (1) { //running loop
         printf("Enter a string (or 'END' to quit): ");
         fflush(stdout);
 
@@ -250,7 +248,7 @@ int main(void) {
             break;
         }
 
-        if (strcmp(line, "END") == 0) {
+        if (strcmp(line, "END") == 0) { //break running loop if exactly END is entered. Free memory.
             printf("Program terminated.\n");
             free(line);
             break;
@@ -258,27 +256,27 @@ int main(void) {
 
         unsigned long address = 0;
         int port = -1;
-        int found = extractIPv4(line, &address, &port);
+        int found = extractIPv4(line, &address, &port); //Extract ipv4+port
 
-        if (found) {
+        if (found) { //if get ip, separate out each octet with logic operations
             unsigned int a = (unsigned int)((address >> 24) & 0xFF);
             unsigned int b = (unsigned int)((address >> 16) & 0xFF);
             unsigned int c = (unsigned int)((address >> 8) & 0xFF);
             unsigned int d = (unsigned int)(address & 0xFF);
 
-            if (port == -1) {
+            if (port == -1) { //no port
                 printf("Extracted IPv4 address: %u.%u.%u.%u (decimal value: %lu, port: none)\n",
                        a, b, c, d, address);
-            } else {
+            } else { //yes port
                 printf("Extracted IPv4 address: %u.%u.%u.%u (decimal value: %lu, port: %d)\n",
                        a, b, c, d, address, port);
             }
-        } else {
+        } else { //extract failed
             printf("Invalid input: no valid IPv4 address found\n");
         }
 
-        free(line);
+        free(line); //free memory
     }
 
-    return 0;
+    return 0; //running loop is broken, end program
 }
